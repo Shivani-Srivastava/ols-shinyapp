@@ -7,7 +7,11 @@ library(RColorBrewer)
 library(Hmisc)
 library(ggplot2)
 library(reshape2)
-
+library(olsrr)
+library(stats)
+library(skedastic)
+library(lmtest)
+library(dplyr)
 # library(gplot)
 
 shinyServer(function(input, output,session) {
@@ -49,8 +53,8 @@ output$xvarselect <- renderUI({
 
 output$fxvarselect <- renderUI({
   if (identical(Dataset(), '') || identical(Dataset(),data.frame())) return(NULL)
-  
-  selectInput("fxAttr", "Select non metric X variables",multiple = TRUE,
+
+  selectInput("fxAttr", "Select non-metric variable(s) in X",multiple = TRUE,
               selectize = TRUE,
                      setdiff(colnames(Dataset()),input$yAttr),"" )
   
@@ -112,62 +116,6 @@ output$summary = renderPrint({
       }
 })
 
-# output$scatterplots <- renderUI({
-#   if (is.null(input$file)) {return(NULL)}
-#   else {
-#     
-#     plot_output_list <- lapply(1:out()[[7]], function(i) {
-#       plotname <- paste("plot", i, sep="")
-#       plotOutput(plotname, height = 700, width = 700)
-#     })
-#     # Convert the list to a tagList - this is necessary for the list of items
-#     # to display properly.
-#     do.call(tagList, plot_output_list)
-#   }
-# })
-# 
-# # Call renderPlot for each one. Plots are only actually generated when they
-# # are visible on the web page.
-# max_plots = 50
-# 
-# for (i in 1:max_plots) {
-#   # Need local so that each item gets its own number. Without it, the value
-#   # of i in the renderPlot() will be the same across all instances, because
-#   # of when the expression is evaluated.
-#   local({
-#     
-#     my_i <- i 
-#     plotname <- paste("plot", my_i, sep="")
-#     
-#     output[[plotname]] <- renderPlot({
-#       out1 = out()
-#       a = out1[[6]]
-#       j = my_i
-#       if (ncol(out1[[5]]) == a[j] + 1){
-#         a1 = a[j]+1
-#         a2 = a[j]-1
-#         dai = out1[[5]][,a1:a2]
-#         plot(dai)
-#         }
-#       
-#       else if ( ncol(out1[[5]]) < a[j + 1]){
-#         a1 = a[j]+1
-#         a2 = ncol(out1[[5]])
-#         dai = out1[[5]][,a1:a2]
-#         plot(dai)
-#       }
-#       
-#       else if(ncol(out1[[5]]) > a[j + 1]){
-#         a1 = a[j]+1
-#         a2 = a[j + 1]
-#         dai = out1[[5]][,a1:a2]
-#         plot(dai)
-#       }
-#       
-#       mtext(paste("Scater plot " ,my_i), side = 3, line = 2, cex=2)
-#         })
-#   })
-# }
 
 output$heatmap = renderPlot({ 
   
@@ -216,22 +164,34 @@ ols2 = reactive({
   })
 
 output$resplot1 = renderPlot({
-  plot(ols()$residuals)
+  plot(ols()$residuals, xlab = 'Residuals', ylab='',pch=16)#,cex=0.4)
+  #title(main = "Fitted Values v/s Y"))
 })
 
 output$resplot2 = renderPlot({
-  plot(ols()$residuals,ols()$fitted.values)
+    plot(ols()$residuals,ols()$fitted.values, xlab = 'Residuals', ylab = 'Fitted Values')
+  title(main = "Fitted Values v/s Residuals")
 })
 
 output$resplot3 = renderPlot({
-  plot(mydata()[,input$yAttr],ols()$fitted.values)#
+  plot(mydata()[,input$yAttr],ols()$fitted.values, xlab = 'Dependent Variables', ylab = 'Fitted Values')
+  title(main = "Fitted Values v/s Chosen Y Variable")
+
 })
 
-
+output$olsformula <- renderPrint({
+   result <- summary(ols())
+   a00 = result$terms 
+   formula = formula(a00)
+   #toPrint3 <- paste0('Equation : ',formula)
+   formula
+})
 output$olssummary = DT::renderDataTable({
   #summary(ols())
   
   result <- summary(ols())$coefficients
+  
+  #result <- as.data.frame(result) %>% mutate(SigCod = case_when('Pr(>|t|)' < 0.001 ~ "***", 'Pr(>|t|)' < 0.01 ~"**", 'Pr(>|t|)' < 0.1 ~ "*"))
   
   DT::datatable(round(result,3))
   })
@@ -239,16 +199,72 @@ output$olssummary = DT::renderDataTable({
 output$olssummarystd = DT::renderDataTable({
   #summary(ols2())
   
-  result <- summary(ols2())$coefficients
-  
+  result <- as.data.frame(summary(ols2())$coefficients)
+  #result <- result %>% mutate(SigCod = case_when(p.value < 0.001 ~ "***", p.value < 0.01 ~"**", p.value < 0.1 ~ "*"))
   DT::datatable(round(result,3))
 })
 
-output$datatable = renderTable({
+ output$AccompaniedResults <- renderPrint({
+ result <- summary(ols())
+ toPrint <- paste0('F-statistic: ',result$fstatistic[1], ' on ',result$fstatistic[2], ' and ', result$fstatistic[3], ' DF')
+ toPrint 
+ })
+  
+  output$AccompaniedResults2 <- renderPrint({
+ result <- summary(ols())
+ toPrint2 <- summary(result$residuals)
+ toPrint2
+  })
+ 
+  output$AccompaniedResults3 <- renderPrint({
+ result <- summary(ols())
+ toPrint3 <- paste0('Multiple R-Squared: ',result$r.squared,', Adjusted R-Squared:  ',result$adj.r.squared)
+  toPrint3
+ 
+ })
+  
+output$WhiteTest <-renderPrint({
+  skedastic::white_lm(ols())
+})  
+  
+output$QQplot <- renderPlot({
+  set.seed(1234)
+  par(mfrow=c(1,2))
+  qqnorm(Dataset()[,c(input$yAttr)])
+  qqline(Dataset()[,c(input$yAttr)])
+})  
+  
+output$KSTest <- renderPrint({
+ks.test(Dataset()[,c(input$yAttr)],'pnorm')
+})  
+  
+output$VIF <- DT::renderDataTable({
+  DT::datatable(ols_vif_tol(ols()))
+   
+  })  
+  
+output$BPTest <- renderPrint({
+  lmtest::bptest(ols())
+})  
+  
+output$DWTest <- renderPrint({
+  lmtest::dwtest(ols())
+})  
+  
+output$ACFPlot <- renderPlot({
+  plot <- stats::acf(ols()$residuals, type="correlation", title = "Autocorrelation Factor Plot")
+  #plot <- title(main = "Autocorrelation Factor Plot")
+  plot
+})  
+  
+output$datatable2 = renderTable({
   Y.hat = ols()$fitted.values
   data.frame(Y.hat,mydata())
 })
 
+output$datatable = DT::renderDataTable({
+  DT::datatable(Dataset())
+})
 
 prediction = reactive({
   val = predict(ols(),Dataset.Predict())
@@ -282,5 +298,28 @@ output$downloadData2 <- downloadHandler(
   }
 )
 
+output$downloadData3 <- downloadHandler(
+  filename = function() { "mtcars.csv" },
+  content = function(file) {
+    write.csv(read.csv("data/mtcars dataset.csv"), file, row.names=F, col.names=F)
+  }
+)  
+ 
+  
+output$downloadData4 <- downloadHandler(
+  filename = function() { "Diamonds_Full.csv" },
+  content = function(file) {
+    write.csv(read.csv("data/diamonds.csv"), file, row.names=F, col.names=F)
+  }
+)  
+ 
+  
+output$downloadData5 <- downloadHandler(
+  filename = function() { "Diamonds_section.csv" },
+  content = function(file) {
+    write.csv(read.csv("data/diamonds_section.csv"), file, row.names=F, col.names=F)
+  }
+)
+  
 })
 
