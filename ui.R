@@ -114,7 +114,7 @@ shinyUI(fluidPage(
                          verbatimTextOutput('DWTest')
                         ),
 
-                         plotOutput("resplot1")),
+                         plotOutput("resplot1"),
                 tabPanel("Data with predicted Y",tableOutput("datatable2")),
                 tabPanel("Prediction",br(),
                          h4("First 10 rows of predicted data"),
