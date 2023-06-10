@@ -114,15 +114,15 @@ shinyUI(fluidPage(
                          verbatimTextOutput('DWTest')
                         ),
 
-                         plotOutput("resplot1"))#,
-                #tabPanel("Data with predicted Y",tableOutput("datatable2")),
-                #tabPanel("Prediction",br(),
-                #         h4("First 10 rows of predicted data"),
-                #         p('"Yhat" column is the predicted value.'),
-                #         verbatimTextOutput('prediction'),
-                #         h4("Download Predicted Data"),
-                #         downloadButton('downloadData1', 'Download Predicted Data')
-                #)                
+                         plotOutput("resplot1")),
+                tabPanel("Data with predicted Y",tableOutput("datatable2")),
+                tabPanel("Prediction",br(),
+                         h4("First 10 rows of predicted data"),
+                         p('"Yhat" column is the predicted value.'),
+                         verbatimTextOutput('prediction'),
+                         h4("Download Predicted Data"),
+                         downloadButton('downloadData1', 'Download Predicted Data')
+                )                
 
 
                 )
